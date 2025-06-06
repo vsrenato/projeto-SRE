@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rollback-script
+  namespace: sre
+data:
+  rollback.sh: |
+    #!/bin/bash
+    set -e
+
+    # Função para realizar rollback
+    rollback() {
+      ENV=$1
+      NAMESPACE=$2
+      DEPLOYMENT_NAME=$3
+
+      echo "Iniciando rollback no ambiente: $ENV"
+
+      kubectl rollout undo deployment/$DEPLOYMENT_NAME -n $NAMESPACE
+
+      echo "Rollback finalizado no ambiente: $ENV"
+    }
+
+    # Rollback para cada ambiente
+    rollback "dev" "dev-namespace" "my-app"
+    rollback "hom" "hom-namespace" "my-app"
+    rollback "prod" "prod-namespace" "my-app"
