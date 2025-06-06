@@ -1,0 +1,85 @@
+name: Deploy com Rollback Automático
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Ambiente (dev, hom ou prod)'
+        required: true
+        default: 'dev'
+
+jobs:
+  deploy:
+    name: Deploy para o ambiente
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    outputs:
+      namespace: ${{ steps.set_namespace.outputs.namespace }}
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+
+      - name: Configurar kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: '1.29.0'
+
+      - name: Setar kubeconfig e namespace
+        id: set_namespace
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "dev" ]; then
+            aws eks update-kubeconfig --region us-east-1 --name my-dev-cluster
+            echo "namespace=dev-namespace" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.environment }}" == "hom" ]; then
+            aws eks update-kubeconfig --region us-east-1 --name my-hom-cluster
+            echo "namespace=hom-namespace" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.environment }}" == "prod" ]; then
+            aws eks update-kubeconfig --region us-east-1 --name my-prod-cluster
+            echo "namespace=prod-namespace" >> $GITHUB_OUTPUT
+          else
+            echo "Ambiente inválido"; exit 1
+          fi
+
+      - name: Aplicar manifest do deployment
+        run: |
+          kubectl apply -f k8s/deployment.yaml -n ${{ steps.set_namespace.outputs.namespace }}
+
+      - name: Verificar health do rollout
+        run: |
+          kubectl rollout status deployment/my-app -n ${{ steps.set_namespace.outputs.namespace }} --timeout=60s
+
+  rollback:
+    name: Rollback automático
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+      - name: Configurar kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: '1.29.0'
+
+      - name: Restaurar kubeconfig
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "dev" ]; then
+            aws eks update-kubeconfig --region us-east-1 --name my-dev-cluster
+            NAMESPACE="dev-namespace"
+          elif [ "${{ github.event.inputs.environment }}" == "hom" ]; then
+            aws eks update-kubeconfig --region us-east-1 --name my-hom-cluster
+            NAMESPACE="hom-namespace"
+          elif [ "${{ github.event.inputs.environment }}" == "prod" ]; then
+            aws eks update-kubeconfig --region us-east-1 --name my-prod-cluster
+            NAMESPACE="prod-namespace"
+          else
+            echo "Ambiente inválido"
+            exit 1
+          fi
+          echo "namespace=$NAMESPACE" >> $GITHUB_ENV
+
+      - name: Executar rollback
+        run: |
+          echo "⚠️ Rollback automático para $NAMESPACE"
+          kubectl rollout undo deployment/my-app -n $NAMESPACE
