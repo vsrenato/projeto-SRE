@@ -13,3 +13,4 @@ spec:
     targetRevision: v1.2.3  # <- versão anterior
   syncPolicy:
     automated: {}
+    
