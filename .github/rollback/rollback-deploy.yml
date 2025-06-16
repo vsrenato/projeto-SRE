@@ -25,3 +25,4 @@ data:
     rollback "dev" "dev-namespace" "my-app"
     rollback "hom" "hom-namespace" "my-app"
     rollback "prod" "prod-namespace" "my-app"
+    
