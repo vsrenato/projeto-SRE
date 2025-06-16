@@ -83,3 +83,4 @@ jobs:
         run: |
           echo "⚠️ Rollback automático para $NAMESPACE"
           kubectl rollout undo deployment/my-app -n $NAMESPACE
+          
